@@ -15,11 +15,11 @@ class ProductVariant {
 
   factory ProductVariant.fromJson(Map<String, dynamic> json) {
     return ProductVariant(
-      id: json['variantId']?.toString() ?? '',
-      productId: json['productId']?.toString() ?? '',
+      id: json['variantId']?.toString() ?? json['variant_id']?.toString() ?? json['id']?.toString() ?? '',
+      productId: json['productId']?.toString() ?? json['product_id']?.toString() ?? '',
       size: json['size']?.toString() ?? '',
       colorName: json['colorName']?.toString() ?? json['color_name']?.toString() ?? '',
-      stockQty: (json['stockQty'] ?? json['stock_qty'] as num?)?.toInt() ?? 0,
+      stockQty: (json['stockQty'] ?? json['stock_qty'] ?? 0 as num?)?.toInt() ?? 0,
     );
   }
 }

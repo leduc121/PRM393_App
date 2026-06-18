@@ -13,10 +13,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final usernameController = TextEditingController();
   final passwordController = TextEditingController();
   String? error;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<SportZoneState>();
+    final state = context.read<SportZoneState>();
     final h = MediaQuery.of(context).size.height;
 
     return Scaffold(
@@ -137,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           elevation: 0,
                         ),
-                        onPressed: state.isLoadingAuth
+                        onPressed: _isLoading
                             ? null
                             : () async {
                                 final email = usernameController.text.trim();
@@ -148,7 +149,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   });
                                   return;
                                 }
+                                setState(() => _isLoading = true);
                                 final errMessage = await state.loginAsync(email, password);
+                                if (!mounted) return;
+                                setState(() => _isLoading = false);
                                 if (errMessage == null) {
                                   state.fetchCategories();
                                   state.fetchBrands();
@@ -161,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   });
                                 }
                               },
-                        child: state.isLoadingAuth
+                        child: _isLoading
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,

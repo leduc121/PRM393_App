@@ -32,7 +32,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
       ),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -238,24 +238,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 ),
                 onPressed: state.cartItems.isEmpty
                     ? null
-                    : () {
+                    : () async {
                         final name = fullName.text.isEmpty
                             ? 'Nguyễn Văn A'
                             : fullName.text.trim();
+                        final phoneStr = phone.text.isEmpty
+                            ? '0900000000'
+                            : phone.text.trim();
                         final addr = address.text.isEmpty
                             ? '123 Lê Lợi, Quận 1, TP.HCM'
                             : address.text.trim();
-                        state.checkout(
-                          name,
-                          phone.text.trim(),
-                          addr,
-                          selectedPayment,
+                        
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => const Center(child: CircularProgressIndicator()),
                         );
-                        Navigator.pushNamedAndRemoveUntil(
-                          context,
-                          '/main',
-                          (route) => route.isFirst,
+                        
+                        final result = await state.checkout(
+                          recipientName: name,
+                          phone: phoneStr,
+                          street: addr,
+                          paymentMethod: selectedPayment,
                         );
+                        
+                        if (!mounted) return;
+                        Navigator.pop(context); // Pop loading dialog
+                        
+                        if (result.isSuccess) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Đặt hàng thành công!')),
+                          );
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/main',
+                            (route) => route.isFirst,
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(result.errorMessage ?? 'Đặt hàng thất bại')),
+                          );
+                        }
                       },
                 child: Text(
                   'ĐẶT HÀNG',

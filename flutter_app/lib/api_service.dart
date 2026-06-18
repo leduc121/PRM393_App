@@ -8,10 +8,14 @@ import 'dart:io' show Platform;
 class ApiService {
   // Use remote URL in Release mode, local URL in Debug mode
   static String get baseUrl {
-    if (kReleaseMode) return 'https://prm393-be.onrender.com/api/v1';
-    if (kIsWeb) return 'http://127.0.0.1:3000/api/v1';
-    if (Platform.isAndroid) return 'http://10.0.2.2:3000/api/v1';
-    return 'http://127.0.0.1:3000/api/v1';
+    // Trỏ thẳng về link Render đã deploy (dùng cho cả Debug và Release)
+    return 'https://prm393-be.onrender.com/api/v1';
+
+    // Nếu sau này bạn muốn chạy test với Backend dưới máy Local, hãy dùng cụm dưới:
+    // if (kReleaseMode) return 'https://prm393-be.onrender.com/api/v1';
+    // if (kIsWeb) return 'http://127.0.0.1:3000/api/v1';
+    // if (Platform.isAndroid) return 'http://10.10.3.39:3000/api/v1';
+    // return 'http://127.0.0.1:3000/api/v1';
   }
   static const String _tokenKey = 'jwt_access_token';
 
@@ -378,6 +382,377 @@ class ApiService {
       }
     } catch (e) {
       return ApiResult.error('Không thể kết nối: $e');
+    }
+  }
+
+  // ─── Cart Endpoints ───
+
+  static Future<ApiResult> getCart() async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/cart'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể tải giỏ hàng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi tải giỏ hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> addToCart({
+    required String variantId,
+    required int quantity,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/cart/items'),
+        headers: headers,
+        body: jsonEncode({
+          'variantId': variantId,
+          'quantity': quantity,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể thêm vào giỏ hàng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi thêm vào giỏ hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> updateCartItem({
+    required String itemId,
+    required int quantity,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/cart/items/$itemId'),
+        headers: headers,
+        body: jsonEncode({
+          'quantity': quantity,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể cập nhật giỏ hàng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi cập nhật giỏ hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> deleteCartItem({
+    required String itemId,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/cart/items/$itemId'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể xóa mặt hàng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi xóa mặt hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> clearCart() async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/cart'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể xóa toàn bộ giỏ hàng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi xóa toàn bộ giỏ hàng: $e');
+    }
+  }
+
+  // ─── Orders Endpoints ───
+
+  static Future<ApiResult> createOrder({
+    required String addressId,
+    required String paymentMethod,
+    String? note,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders'),
+        headers: headers,
+        body: jsonEncode({
+          'addressId': addressId,
+          'paymentMethod': paymentMethod,
+          if (note != null && note.isNotEmpty) 'note': note,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Đặt hàng thất bại';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi đặt hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> getMyOrders() async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể tải danh sách đơn hàng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi tải danh sách đơn hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> getOrderById(String id) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/orders/$id'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể tải chi tiết đơn hàng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi tải chi tiết đơn hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> cancelOrder(String id) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/orders/$id'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Hủy đơn hàng thất bại';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi hủy đơn hàng: $e');
+    }
+  }
+
+  static Future<ApiResult> updateOrderStatus(String id, String status) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/orders/$id/status'),
+        headers: headers,
+        body: jsonEncode({'status': status}),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Cập nhật trạng thái thất bại';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi cập nhật trạng thái đơn hàng: $e');
+    }
+  }
+
+  // ─── Users & Addresses Endpoints ───
+
+  static Future<ApiResult> getUserProfile(String uid) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$uid'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể lấy thông tin người dùng';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi lấy thông tin người dùng: $e');
+    }
+  }
+
+  static Future<ApiResult> updateUserProfile(String uid, Map<String, dynamic> data) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/users/$uid'),
+        headers: headers,
+        body: jsonEncode(data),
+      );
+
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return ApiResult.success(responseData);
+      } else {
+        final msg = responseData['message'] ?? 'Cập nhật profile thất bại';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi cập nhật profile: $e');
+    }
+  }
+
+  static Future<ApiResult> getAddresses(String uid) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$uid/addresses'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể tải danh sách địa chỉ';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi tải danh sách địa chỉ: $e');
+    }
+  }
+
+  static Future<ApiResult> createAddress({
+    required String uid,
+    required String recipientName,
+    required String phone,
+    required String street,
+    String? ward,
+    String? district,
+    String? city,
+    bool isDefault = false,
+  }) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/users/$uid/addresses'),
+        headers: headers,
+        body: jsonEncode({
+          'recipientName': recipientName,
+          'phone': phone,
+          'street': street,
+          if (ward != null && ward.isNotEmpty) 'ward': ward,
+          if (district != null && district.isNotEmpty) 'district': district,
+          if (city != null && city.isNotEmpty) 'city': city,
+          'isDefault': isDefault,
+        }),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể tạo địa chỉ';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi tạo địa chỉ: $e');
+    }
+  }
+
+  static Future<ApiResult> updateAddress(String addressId, Map<String, dynamic> data) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.patch(
+        Uri.parse('$baseUrl/addresses/$addressId'),
+        headers: headers,
+        body: jsonEncode(data),
+      );
+
+      final responseData = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return ApiResult.success(responseData);
+      } else {
+        final msg = responseData['message'] ?? 'Không thể cập nhật địa chỉ';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi cập nhật địa chỉ: $e');
+    }
+  }
+
+  static Future<ApiResult> deleteAddress(String addressId) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.delete(
+        Uri.parse('$baseUrl/addresses/$addressId'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Không thể xóa địa chỉ';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi xóa địa chỉ: $e');
     }
   }
 }

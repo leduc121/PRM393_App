@@ -82,6 +82,7 @@ class SportZoneState extends ChangeNotifier {
     final result = await ApiService.getMe();
     if (result.isSuccess && result.data != null) {
       currentUser = User.fromJson(result.data as Map<String, dynamic>);
+      await fetchCart();
       notifyListeners();
       return true;
     } else {
@@ -105,6 +106,7 @@ class SportZoneState extends ChangeNotifier {
       if (data['user'] != null) {
         currentUser = User.fromJson(data['user'] as Map<String, dynamic>);
       }
+      await fetchCart();
       notifyListeners();
       return null; // no error
     } else {
@@ -312,78 +314,182 @@ class SportZoneState extends ChangeNotifier {
     );
   }
 
-  void addToCart(
-    Product product, {
-    String size = '40',
-    String color = 'Black',
-    int quantity = 1,
-  }) {
-    final existing = cartItems.firstWhere(
-      (item) =>
-          item.productId == product.id &&
-          item.size == size &&
-          item.color == color,
-      orElse: () => CartItem.empty(),
-    );
-    if (existing.id != 0) {
-      existing.quantity += quantity;
-    } else {
-      cartItems.add(
-        CartItem(
-          id: _nextCartId++,
-          productId: product.id,
-          name: product.name,
-          price: product.price,
-          imageUrl: product.imageUrl,
-          quantity: quantity,
-          size: size,
-          color: color,
-        ),
-      );
-    }
-    notifyListeners();
-  }
-
-  void updateCartItemQuantity(int id, int quantity) {
-    final item = cartItems.firstWhere(
-      (it) => it.id == id,
-      orElse: () => CartItem.empty(),
-    );
-    if (item.id == 0) {
-      return;
-    }
-    if (quantity <= 0) {
-      cartItems.removeWhere((it) => it.id == id);
-    } else {
-      item.quantity = quantity;
-    }
-    notifyListeners();
-  }
-
-  void deleteCartItem(int id) {
-    cartItems.removeWhere((item) => item.id == id);
-    notifyListeners();
-  }
-
-  void checkout(
-    String name,
-    String phone,
-    String address,
-    String paymentMethod,
-  ) {
-    notifications.insert(
-      0,
-      NotificationItem(
-        title: 'Đơn hàng đã đặt thành công',
-        content:
-            'Cảm ơn $name, đơn hàng của bạn ($paymentMethod) với tổng trị giá đã được xử lý và sẽ giao tới: $address',
-        timeAgo: 'Vừa xong',
-        category: 'DELIVERY',
-        isRead: false,
-      ),
-    );
+  void _updateLocalCart(Map<String, dynamic> cartData) {
+    final itemsList = cartData['items'] as List<dynamic>? ?? [];
     cartItems.clear();
+    cartItems.addAll(itemsList.map((json) => CartItem.fromJson(json as Map<String, dynamic>)));
     notifyListeners();
+  }
+
+  Future<void> fetchCart() async {
+    final result = await ApiService.getCart();
+    if (result.isSuccess && result.data != null) {
+      _updateLocalCart(result.data as Map<String, dynamic>);
+    }
+  }
+
+  Future<String?> addToCart(
+    Product product, {
+    String? variantId,
+    String? size,
+    String? color,
+    int quantity = 1,
+  }) async {
+    try {
+      String? targetVariantId = variantId;
+
+      if (targetVariantId == null) {
+        final detailResult = await ApiService.getProductDetail(product.id);
+        if (!detailResult.isSuccess) {
+          return detailResult.errorMessage ?? 'Không thể tải thông tin sản phẩm';
+        }
+
+        final List vList = detailResult.data['variants'] ?? [];
+        final variants = vList.map((v) => ProductVariant.fromJson(v)).toList();
+        if (variants.isEmpty) {
+          return 'Sản phẩm hiện tại không có sẵn kích cỡ/màu sắc.';
+        }
+
+        ProductVariant matched;
+        if (size != null && color != null) {
+          matched = variants.firstWhere(
+            (v) => v.size == size && v.colorName == color,
+            orElse: () => variants.first,
+          );
+        } else {
+          matched = variants.first;
+        }
+        targetVariantId = matched.id;
+      }
+
+      final cartResult = await ApiService.addToCart(
+        variantId: targetVariantId,
+        quantity: quantity,
+      );
+
+      if (cartResult.isSuccess) {
+        _updateLocalCart(cartResult.data);
+        return null;
+      } else {
+        return cartResult.errorMessage ?? 'Không thể thêm vào giỏ hàng';
+      }
+    } catch (e) {
+      return 'Lỗi: $e';
+    }
+  }
+
+  Future<String?> updateCartItemQuantity(String itemId, int quantity) async {
+    try {
+      if (quantity <= 0) {
+        return deleteCartItem(itemId);
+      }
+      final result = await ApiService.updateCartItem(itemId: itemId, quantity: quantity);
+      if (result.isSuccess) {
+        _updateLocalCart(result.data);
+        return null;
+      } else {
+        return result.errorMessage ?? 'Cập nhật giỏ hàng thất bại';
+      }
+    } catch (e) {
+      return 'Lỗi: $e';
+    }
+  }
+
+  Future<String?> deleteCartItem(String itemId) async {
+    try {
+      final result = await ApiService.deleteCartItem(itemId: itemId);
+      if (result.isSuccess) {
+        _updateLocalCart(result.data);
+        return null;
+      } else {
+        return result.errorMessage ?? 'Xóa mặt hàng thất bại';
+      }
+    } catch (e) {
+      return 'Lỗi: $e';
+    }
+  }
+
+  Future<ApiResult> checkout({
+    required String recipientName,
+    required String phone,
+    required String street,
+    required String paymentMethod,
+    String? note,
+  }) async {
+    if (currentUser == null) {
+      return ApiResult.error('Vui lòng đăng nhập để thanh toán');
+    }
+
+    try {
+      // 1. Get user's addresses
+      final addrResult = await ApiService.getAddresses(currentUser!.uid);
+      String? addressId;
+
+      if (addrResult.isSuccess && addrResult.data is List) {
+        final List list = addrResult.data;
+        // Check if there is an exact match
+        for (var addr in list) {
+          if (addr['recipientName'] == recipientName &&
+              addr['phone'] == phone &&
+              addr['street'] == street) {
+            addressId = addr['addressId']?.toString();
+            break;
+          }
+        }
+      }
+
+      // 2. If no matching address, create one
+      if (addressId == null) {
+        final createAddrResult = await ApiService.createAddress(
+          uid: currentUser!.uid,
+          recipientName: recipientName,
+          phone: phone,
+          street: street,
+          district: 'Quận 1', // fallback since simple address text field
+          city: 'TP. Hồ Chí Minh',
+          isDefault: true,
+        );
+        if (!createAddrResult.isSuccess) {
+          return ApiResult.error(createAddrResult.errorMessage ?? 'Không thể tạo địa chỉ giao hàng');
+        }
+        addressId = createAddrResult.data['addressId']?.toString();
+      }
+
+      if (addressId == null) {
+        return ApiResult.error('Lỗi khởi tạo địa chỉ giao hàng');
+      }
+
+      // 3. Create order on backend
+      final orderResult = await ApiService.createOrder(
+        addressId: addressId,
+        paymentMethod: paymentMethod,
+        note: note,
+      );
+
+      if (orderResult.isSuccess) {
+        // Clear local cart items because the backend has cleared it
+        cartItems.clear();
+
+        // Add a notification for checkout success
+        notifications.insert(
+          0,
+          NotificationItem(
+            title: 'Đơn hàng đã đặt thành công',
+            content: 'Cảm ơn $recipientName, đơn đặt hàng ($paymentMethod) đã được ghi nhận thành công!',
+            timeAgo: 'Vừa xong',
+            category: 'DELIVERY',
+            isRead: false,
+          ),
+        );
+
+        notifyListeners();
+        return ApiResult.success(orderResult.data);
+      } else {
+        return ApiResult.error(orderResult.errorMessage ?? 'Đặt hàng thất bại');
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi thanh toán: $e');
+    }
   }
 
   void markAllNotificationsRead() {

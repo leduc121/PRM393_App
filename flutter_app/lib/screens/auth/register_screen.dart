@@ -18,10 +18,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final confirmController = TextEditingController();
   bool agreeTerms = false;
   String? error;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<SportZoneState>();
+    final state = context.read<SportZoneState>();
     final h = MediaQuery.of(context).size.height;
 
     return Scaffold(
@@ -121,7 +122,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           elevation: 0,
                         ),
-                        onPressed: state.isLoadingAuth
+                        onPressed: _isLoading
                             ? null
                             : () async {
                                 final name = nameController.text.trim();
@@ -136,12 +137,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 } else if (!agreeTerms) {
                                   setState(() => error = 'Bạn phải đồng ý với các điều khoản của SPORTZONE!');
                                 } else {
+                                  setState(() => _isLoading = true);
                                   final errMessage = await state.registerAsync(
                                     fullName: name,
                                     email: email,
                                     password: pass,
                                     phone: phone,
                                   );
+                                  if (!mounted) return;
+                                  setState(() => _isLoading = false);
                                   if (errMessage == null) {
                                     if (!context.mounted) return;
                                     Navigator.pushReplacement(
@@ -153,7 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   }
                                 }
                               },
-                        child: state.isLoadingAuth
+                        child: _isLoading
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,

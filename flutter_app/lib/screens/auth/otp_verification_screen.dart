@@ -18,6 +18,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   String? error;
   int _secondsLeft = 60;
   Timer? _timer;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -51,9 +52,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       setState(() => error = 'Vui lòng nhập đủ 6 số OTP');
       return;
     }
+    setState(() => _isLoading = true);
     final errMessage = await state.verifyOtpAsync(widget.email, otp);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
     if (errMessage == null) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Xác thực thành công! Vui lòng đăng nhập.')),
       );
@@ -65,10 +68,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   Future<void> _resendOtp() async {
     final state = context.read<SportZoneState>();
+    setState(() => _isLoading = true);
     final errMessage = await state.resendOtpAsync(widget.email);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
     if (errMessage == null) {
       _startTimer();
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Đã gửi lại mã OTP!')),
       );
@@ -79,7 +84,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = context.watch<SportZoneState>();
     final h = MediaQuery.of(context).size.height;
 
     final defaultPinTheme = PinTheme(
@@ -169,7 +173,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         focusedPinTheme: focusedPinTheme,
                         showCursor: true,
                         onCompleted: (pin) {
-                          if (!state.isLoadingAuth) _verifyOtp();
+                          if (!_isLoading) _verifyOtp();
                         },
                       ),
                     ),
@@ -192,8 +196,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           ),
                           elevation: 0,
                         ),
-                        onPressed: state.isLoadingAuth ? null : _verifyOtp,
-                        child: state.isLoadingAuth
+                        onPressed: _isLoading ? null : _verifyOtp,
+                        child: _isLoading
                             ? const SizedBox(
                                 width: 24,
                                 height: 24,
@@ -217,7 +221,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: SportZoneTheme.secondary),
                         ),
                         GestureDetector(
-                          onTap: _secondsLeft == 0 && !state.isLoadingAuth ? _resendOtp : null,
+                          onTap: _secondsLeft == 0 && !_isLoading ? _resendOtp : null,
                           child: Text(
                             _secondsLeft > 0 ? 'Gửi lại sau s' : 'Gửi lại ngay',
                             style: Theme.of(context).textTheme.bodyLarge?.copyWith(

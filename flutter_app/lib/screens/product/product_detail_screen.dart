@@ -316,13 +316,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           SizedBox(
                             height: 220,
                             child: ListView.builder(
-                              scrollDirection: Axis.horizontal,
+                                  scrollDirection: Axis.horizontal,
                               itemCount: recommended.length,
                               padding: const EdgeInsets.only(right: 16),
                               itemBuilder: (context, index) {
                                 final product = recommended[index];
                                 return GestureDetector(
-                                  onTap: () => state.addToCart(product),
+                                  onTap: () async {
+                                    final error = await state.addToCart(product);
+                                    if (!context.mounted) return;
+                                    if (error != null) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(error)),
+                                      );
+                                    } else {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Đã thêm vào giỏ hàng')),
+                                      );
+                                    }
+                                  },
                                   child: Container(
                                     width: 160,
                                     margin: const EdgeInsets.only(right: 16),
@@ -443,17 +455,26 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       disabledBackgroundColor: SportZoneTheme.borderSubtle,
                       disabledForegroundColor: SportZoneTheme.secondary,
                     ),
-                    onPressed: (currentStock == 0 || isLoading) ? null : () {
-                      state.addToCart(
-                        widget.product,
-                        size: selectedSize,
-                        color: selectedColor,
-                        quantity: quantity,
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Đã thêm vào giỏ hàng')),
-                      );
-                    },
+                     onPressed: (currentStock == 0 || isLoading) ? null : () async {
+                       setState(() => isLoading = true);
+                       final error = await state.addToCart(
+                         widget.product,
+                         size: selectedSize,
+                         color: selectedColor,
+                         quantity: quantity,
+                       );
+                       setState(() => isLoading = false);
+                       if (!context.mounted) return;
+                       if (error != null) {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           SnackBar(content: Text(error)),
+                         );
+                       } else {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                           const SnackBar(content: Text('Đã thêm vào giỏ hàng')),
+                         );
+                       }
+                     },
                     child: Text(
                       (currentStock == 0 && !isLoading) ? 'HẾT HÀNG' : 'THÊM VÀO GIỎ HÀNG',
                       maxLines: 1,
