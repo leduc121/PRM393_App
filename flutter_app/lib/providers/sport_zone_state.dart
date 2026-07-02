@@ -529,10 +529,10 @@ class SportZoneState extends ChangeNotifier {
     if (result.isSuccess) {
       final raw = result.data;
       if (raw is List) {
-        chatMessages = raw
+        chatMessages.clear();
+        chatMessages.addAll(raw
             .whereType<Map<String, dynamic>>()
-            .map((json) => ChatMessage.fromJson(json, isCurrentUserAdmin: false))
-            .toList();
+            .map((json) => ChatMessage.fromJson(json, isCurrentUserAdmin: false)));
         notifyListeners();
       }
     }

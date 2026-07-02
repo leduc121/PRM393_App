@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_app/core.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class BadgeBubble extends StatelessWidget {
   final String text;
@@ -375,9 +376,25 @@ class ProductImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cleanUrl = imageUrl.trim();
+    var cleanUrl = imageUrl.trim();
     if (cleanUrl.isEmpty || cleanUrl.contains('example.com')) {
-      return _placeholder(context);
+      if (cleanUrl.contains('nike-tshirt')) {
+        cleanUrl = 'https://images.unsplash.com/photo-1581655353564-df123a1eb820?auto=format&fit=crop&w=600&q=80';
+      } else if (cleanUrl.contains('adidas-short')) {
+        cleanUrl = 'https://images.unsplash.com/photo-1508962914676-134849a727f0?auto=format&fit=crop&w=600&q=80';
+      } else if (cleanUrl.contains('puma-tshirt')) {
+        cleanUrl = 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=600&q=80';
+      } else if (cleanUrl.contains('ua-pants')) {
+        cleanUrl = 'https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=600&q=80';
+      } else if (cleanUrl.contains('nike-jacket')) {
+        cleanUrl = 'https://images.unsplash.com/photo-1548883354-7622d03aca27?auto=format&fit=crop&w=600&q=80';
+      } else {
+        return _placeholder(context);
+      }
+    }
+
+    if (kIsWeb && cleanUrl.startsWith('http')) {
+      cleanUrl = '${ApiService.baseUrl}/products/image-proxy?url=${Uri.encodeComponent(cleanUrl)}';
     }
 
     return Image.network(
