@@ -549,18 +549,22 @@ class ApiService {
   static Future<ApiResult> createOrder({
     required String addressId,
     required String paymentMethod,
+    int? shippingFee,
     String? note,
   }) async {
     try {
       final headers = await _authHeaders();
+      final body = <String, dynamic>{
+        'addressId': addressId,
+        'paymentMethod': paymentMethod,
+      };
+      if (shippingFee != null) body['shippingFee'] = shippingFee;
+      if (note != null && note.isNotEmpty) body['note'] = note;
+
       final response = await http.post(
         Uri.parse('$baseUrl/orders'),
         headers: headers,
-        body: jsonEncode({
-          'addressId': addressId,
-          'paymentMethod': paymentMethod,
-          if (note != null && note.isNotEmpty) 'note': note,
-        }),
+        body: jsonEncode(body),
       );
 
       final data = jsonDecode(response.body);
