@@ -37,13 +37,52 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadUserDataAndDefaultAddress();
+    });
+  }
+
+  Future<void> _loadUserDataAndDefaultAddress() async {
+    final state = Provider.of<SportZoneState>(context, listen: false);
+    if (state.currentUser != null) {
+      if (mounted) {
+        setState(() {
+          fullName.text = state.currentUser!.name;
+          phone.text = state.currentUser!.phone;
+        });
+      }
+
+      final addrResult = await ApiService.getAddresses(state.currentUser!.uid);
+      if (addrResult.isSuccess && addrResult.data is List && mounted) {
+        final List list = addrResult.data;
+        if (list.isNotEmpty) {
+          final defaultAddr = list.firstWhere(
+            (addr) => addr['isDefault'] == true,
+            orElse: () => list.first,
+          );
+          if (defaultAddr != null && mounted) {
+            setState(() {
+              fullName.text = defaultAddr['recipientName']?.toString() ?? fullName.text;
+              phone.text = defaultAddr['phone']?.toString() ?? phone.text;
+              address.text = defaultAddr['street']?.toString() ?? '';
+            });
+            unawaited(_calculateShippingFromCurrentInput());
+          }
+        }
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final state = context.watch<SportZoneState>();
     final subtotal = state.cartItems.fold<int>(
       0,
       (sum, item) => sum + item.price * item.quantity,
     );
-    final activeShippingFee = shippingFee ?? 0;
+    final activeShippingFee = shippingFee ?? (state.cartItems.isEmpty ? 0 : 30000);
     const discount = 0;
     final total = subtotal + activeShippingFee - discount;
     return Scaffold(

@@ -213,19 +213,6 @@ class _SportZoneFooter extends StatelessWidget {
                         Navigator.pushNamed(context, '/order-status');
                       },
                     ),
-                    _AccountMenuItem(
-                      icon: Icons.settings_outlined,
-                      label: 'Settings',
-                      onTap: () {
-                        Navigator.pop(sheetContext);
-                        Navigator.pushNamed(context, '/profile');
-                      },
-                    ),
-                    _AccountMenuItem(
-                      icon: Icons.help_outline,
-                      label: 'Support',
-                      onTap: () => Navigator.pop(sheetContext),
-                    ),
                     const Divider(height: 1),
                     _AccountMenuItem(
                       icon: Icons.logout,

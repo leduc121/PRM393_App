@@ -14,7 +14,7 @@ class CartScreen extends StatelessWidget {
       0,
       (sum, item) => sum + item.price * item.quantity,
     );
-    final shippingFee = items.isEmpty ? 0 : 35000;
+    final shippingFee = items.isEmpty ? 0 : 30000;
     final total = subtotal + shippingFee;
     return Scaffold(
       backgroundColor: SportZoneTheme.background,

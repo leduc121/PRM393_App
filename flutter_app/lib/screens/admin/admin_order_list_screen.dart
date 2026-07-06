@@ -292,28 +292,91 @@ class _AdminOrderCard extends StatelessWidget {
             ],
           ),
           const Divider(height: 24),
+          Text(
+            'TÀI KHOẢN ĐẶT HÀNG',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: SportZoneTheme.secondary,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 6),
           Row(
             children: [
               const Icon(Icons.person_outline,
-                  size: 16, color: SportZoneTheme.secondary),
+                  size: 16, color: SportZoneTheme.primary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  order.customerName ?? 'Khách hàng',
+                  '${order.userFullName ?? order.customerName ?? 'Không rõ'} ${order.userEmail != null ? '(${order.userEmail})' : ''}',
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          if (order.userPhone != null || order.customerPhone != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.phone_outlined,
+                    size: 16, color: SportZoneTheme.secondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    order.userPhone ?? order.customerPhone ?? 'Chưa có SĐT',
+                    style: const TextStyle(color: SportZoneTheme.secondary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          Text(
+            'THÔNG TIN GIAO HÀNG',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: SportZoneTheme.secondary,
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
+          const SizedBox(height: 6),
           Row(
             children: [
-              const Icon(Icons.phone_outlined,
+              const Icon(Icons.assignment_ind_outlined,
+                  size: 16, color: SportZoneTheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Người nhận: ${order.recipientName ?? order.customerName ?? 'Chưa rõ'}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          if (order.recipientPhone != null || order.customerPhone != null) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Icon(Icons.phone_outlined,
+                    size: 16, color: SportZoneTheme.secondary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'SĐT nhận: ${order.recipientPhone ?? order.customerPhone ?? 'Chưa có SĐT'}',
+                    style: const TextStyle(color: SportZoneTheme.secondary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.location_on_outlined,
                   size: 16, color: SportZoneTheme.secondary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  order.customerPhone ?? 'Chưa có SĐT',
+                  order.fullAddress ?? 'Chưa cập nhật địa chỉ giao hàng',
                   style: const TextStyle(color: SportZoneTheme.secondary),
                 ),
               ),
@@ -354,67 +417,69 @@ class _AdminOrderCard extends StatelessWidget {
             child: Material(
               color: SportZoneTheme.surface,
               borderRadius: BorderRadius.circular(22),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                      child: Text(
-                        'Cập nhật trạng thái',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          color: SportZoneTheme.primary,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                        child: Text(
+                          'Cập nhật trạng thái',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            color: SportZoneTheme.primary,
+                          ),
                         ),
                       ),
-                    ),
-                    const Divider(),
-                    _StatusOption(
-                      label: 'Chờ xác nhận (pending)',
-                      value: 'pending',
-                      current: order.status,
-                      onTap: () => _update(context, sheetContext, 'pending'),
-                    ),
-                    _StatusOption(
-                      label: 'Đã xác nhận (confirmed)',
-                      value: 'confirmed',
-                      current: order.status,
-                      onTap: () => _update(context, sheetContext, 'confirmed'),
-                    ),
-                    _StatusOption(
-                      label: 'Đang chuẩn bị (processing)',
-                      value: 'processing',
-                      current: order.status,
-                      onTap: () => _update(context, sheetContext, 'processing'),
-                    ),
-                    _StatusOption(
-                      label: 'Đang giao hàng (shipping)',
-                      value: 'shipping',
-                      current: order.status,
-                      onTap: () => _update(context, sheetContext, 'shipping'),
-                    ),
-                    _StatusOption(
-                      label: 'Đã giao (delivered)',
-                      value: 'delivered',
-                      current: order.status,
-                      onTap: () => _update(context, sheetContext, 'delivered'),
-                    ),
-                    _StatusOption(
-                      label: 'Hoàn tất (completed)',
-                      value: 'completed',
-                      current: order.status,
-                      onTap: () => _update(context, sheetContext, 'completed'),
-                    ),
-                    _StatusOption(
-                      label: 'Đã huỷ (cancelled)',
-                      value: 'cancelled',
-                      current: order.status,
-                      isError: true,
-                      onTap: () => _update(context, sheetContext, 'cancelled'),
-                    ),
-                  ],
+                      const Divider(),
+                      _StatusOption(
+                        label: 'Chờ xác nhận (pending)',
+                        value: 'pending',
+                        current: order.status,
+                        onTap: () => _update(context, sheetContext, 'pending'),
+                      ),
+                      _StatusOption(
+                        label: 'Đã xác nhận (confirmed)',
+                        value: 'confirmed',
+                        current: order.status,
+                        onTap: () => _update(context, sheetContext, 'confirmed'),
+                      ),
+                      _StatusOption(
+                        label: 'Đang chuẩn bị (processing)',
+                        value: 'processing',
+                        current: order.status,
+                        onTap: () => _update(context, sheetContext, 'processing'),
+                      ),
+                      _StatusOption(
+                        label: 'Đang giao hàng (shipping)',
+                        value: 'shipping',
+                        current: order.status,
+                        onTap: () => _update(context, sheetContext, 'shipping'),
+                      ),
+                      _StatusOption(
+                        label: 'Đã giao (delivered)',
+                        value: 'delivered',
+                        current: order.status,
+                        onTap: () => _update(context, sheetContext, 'delivered'),
+                      ),
+                      _StatusOption(
+                        label: 'Hoàn tất (completed)',
+                        value: 'completed',
+                        current: order.status,
+                        onTap: () => _update(context, sheetContext, 'completed'),
+                      ),
+                      _StatusOption(
+                        label: 'Đã huỷ (cancelled)',
+                        value: 'cancelled',
+                        current: order.status,
+                        isError: true,
+                        onTap: () => _update(context, sheetContext, 'cancelled'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

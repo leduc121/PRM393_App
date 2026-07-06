@@ -43,7 +43,7 @@ class ProfileScreen extends StatelessWidget {
                 _ProfileHeader(user: user),
                 const SizedBox(height: 28),
                 Text(
-                  'Settings',
+                  'Thông tin cá nhân',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
