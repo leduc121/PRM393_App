@@ -1,23 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  // Use remote URL in Release mode, local URL in Debug mode
+  // Use the deployed backend for both debug and release builds.
   static String get baseUrl {
-    if (kReleaseMode) {
-      return 'https://prm393-be.onrender.com/api/v1';
-    }
-    if (kIsWeb) {
-      return 'http://127.0.0.1:3000/api/v1';
-    }
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.10.3.39:3000/api/v1';
-    }
-    return 'http://127.0.0.1:3000/api/v1';
+    return 'https://prm393-be.onrender.com/api/v1';
   }
 
   static const String _tokenKey = 'jwt_access_token';
