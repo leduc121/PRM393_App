@@ -31,6 +31,12 @@ jobs:
         working-directory: flutter_app
         run: flutter pub get
 
+      - name: Remove CocoaPods integration for SPM iOS plugins
+        working-directory: flutter_app
+        run: |
+          rm -f ios/Podfile ios/Podfile.lock
+          rm -rf ios/Pods ios/.symlinks
+
       - name: Build iOS app without codesign
         working-directory: flutter_app
         run: flutter build ios --release --no-codesign
