@@ -129,27 +129,41 @@ class AlertsScreen extends StatelessWidget {
               showUnreadBadge: !isEmpty,
               onMore: () => _showNotificationActions(context, state),
             ),
-            if (isEmpty)
-              const Expanded(child: _EmptyNotificationsView())
-            else
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.only(bottom: 18),
-                  children: [
-                    for (final group in groups) ...[
-                      _NotificationSectionHeader(title: group.title),
-                      for (final item in group.items)
-                        _NotificationTile(
-                          item: item,
-                          onDelete: () => state.deleteNotification(item),
-                          onPay: item.isCartReminder
-                              ? () => Navigator.pushNamed(context, '/checkout')
-                              : null,
-                        ),
-                    ],
-                  ],
-                ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: state.fetchNotifications,
+                child: isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.sizeOf(context).height - 120,
+                            child: const _EmptyNotificationsView(),
+                          ),
+                        ],
+                      )
+                    : ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(bottom: 18),
+                        children: [
+                          for (final group in groups) ...[
+                            _NotificationSectionHeader(title: group.title),
+                            for (final item in group.items)
+                              _NotificationTile(
+                                item: item,
+                                onDelete: () => state.deleteNotification(item),
+                                onPay: item.isCartReminder
+                                    ? () => Navigator.pushNamed(
+                                        context,
+                                        '/checkout',
+                                      )
+                                    : null,
+                              ),
+                          ],
+                        ],
+                      ),
               ),
+            ),
           ],
         ),
       ),

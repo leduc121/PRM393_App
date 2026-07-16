@@ -30,11 +30,11 @@ class _AdminOrderListScreenState extends State<AdminOrderListScreen> {
     if (result.isSuccess) {
       final raw = result.data;
       final list = raw is List ? raw : <dynamic>[];
+      final orders =
+          list.whereType<Map<String, dynamic>>().map(Order.fromJson).toList()
+            ..sort(_compareNewestFirst);
       setState(() {
-        _allOrders = list
-            .whereType<Map<String, dynamic>>()
-            .map(Order.fromJson)
-            .toList();
+        _allOrders = orders;
         _isLoading = false;
       });
     } else {
@@ -61,9 +61,25 @@ class _AdminOrderListScreenState extends State<AdminOrderListScreen> {
           createdAt: old.createdAt,
           customerName: old.customerName,
           customerPhone: old.customerPhone,
+          userFullName: old.userFullName,
+          userEmail: old.userEmail,
+          userPhone: old.userPhone,
+          recipientName: old.recipientName,
+          recipientPhone: old.recipientPhone,
+          fullAddress: old.fullAddress,
         );
+        _allOrders.sort(_compareNewestFirst);
       }
     });
+  }
+
+  static int _compareNewestFirst(Order a, Order b) {
+    final left = a.createdAt;
+    final right = b.createdAt;
+    if (left == null && right == null) return 0;
+    if (left == null) return 1;
+    if (right == null) return -1;
+    return right.compareTo(left);
   }
 
   List<Order> get _filteredOrders {
@@ -574,7 +590,11 @@ class _AdminOrderCard extends StatelessWidget {
   String _dateLabel(DateTime? value) {
     if (value == null) return 'Không rõ ngày tạo';
     final local = value.toLocal();
-    return '${local.day.toString().padLeft(2, '0')}/${local.month.toString().padLeft(2, '0')}/${local.year}';
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month/${local.year} $hour:$minute';
   }
 }
 
