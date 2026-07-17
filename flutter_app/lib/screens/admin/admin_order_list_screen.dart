@@ -100,7 +100,7 @@ class _AdminOrderListScreenState extends State<AdminOrderListScreen> {
         return list;
       case 1: // Cần xử lý
         return list
-            .where((o) => o.status == 'pending' || o.status == 'confirmed')
+            .where((o) => o.status == 'pending' || o.status == 'confirmed' || o.status == 'cancel_requested')
             .toList();
       case 2: // Đang giao
         return list
@@ -434,12 +434,75 @@ class _AdminOrderCard extends StatelessWidget {
               ),
             ],
           ),
+          if (order.status == 'cancel_requested')
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => _showApproveCancelDialog(context, order.id),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange[800],
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Duyệt Hủy & Hoàn tiền (Stripe)'),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showApproveCancelDialog(BuildContext context, String orderId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xác nhận hoàn tiền'),
+        content: const Text('Hệ thống sẽ gọi API Stripe để hoàn tiền 100% cho người dùng và tự động hoàn trả số lượng tồn kho. Bạn có chắc chắn muốn duyệt?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Hủy'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => const Center(child: CircularProgressIndicator()),
+              );
+
+              final res = await ApiService.approveCancelOrder(orderId);
+              if (context.mounted) Navigator.pop(context); // close loading
+
+              if (res.isSuccess) {
+                onUpdated(orderId, 'cancelled');
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã hoàn tiền và hủy đơn thành công!')));
+                }
+              } else {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res.errorMessage ?? 'Có lỗi xảy ra khi hoàn tiền')));
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange[800], foregroundColor: Colors.white),
+            child: const Text('Đồng ý Hoàn tiền'),
+          ),
         ],
       ),
     );
   }
 
   void _showStatusEditor(BuildContext context) {
+    // Không cho phép edit thủ công nếu đang yêu cầu hủy qua Stripe
+    if (order.status == 'cancel_requested') {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng duyệt hoàn tiền bằng nút bên dưới thay vì đổi trạng thái thủ công.')));
+      return;
+    }
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -576,6 +639,8 @@ class _AdminOrderCard extends StatelessWidget {
         return 'Đã giao';
       case 'completed':
         return 'Hoàn tất';
+      case 'cancel_requested':
+        return 'Yêu cầu hủy (Stripe)';
       case 'cancelled':
         return 'Đã hủy';
       case 'pending':

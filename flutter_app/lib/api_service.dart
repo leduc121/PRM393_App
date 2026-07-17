@@ -705,6 +705,26 @@ class ApiService {
     }
   }
 
+  static Future<ApiResult> approveCancelOrder(String id) async {
+    try {
+      final headers = await _authHeaders();
+      final response = await http.post(
+        Uri.parse('$baseUrl/orders/$id/approve-cancel'),
+        headers: headers,
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return ApiResult.success(data);
+      } else {
+        final msg = data['message'] ?? 'Duyệt hoàn tiền thất bại';
+        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
+      }
+    } catch (e) {
+      return ApiResult.error('Lỗi duyệt hủy đơn: $e');
+    }
+  }
+
   static Future<ApiResult> abandonOrder(String id) async {
     try {
       final headers = await _authHeaders();

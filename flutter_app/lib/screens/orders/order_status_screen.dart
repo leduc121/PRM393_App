@@ -83,7 +83,7 @@ class _OrderStatusScreenState extends State<OrderStatusScreen> {
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
               itemBuilder: (context, index) =>
-                  _OrderStatusCard(order: orders[index], steps: _steps),
+                  _OrderStatusCard(order: orders[index], steps: _steps, onReload: _reload),
               separatorBuilder: (context, index) => const SizedBox(height: 14),
               itemCount: orders.length,
             ),
@@ -97,8 +97,9 @@ class _OrderStatusScreenState extends State<OrderStatusScreen> {
 class _OrderStatusCard extends StatelessWidget {
   final Order order;
   final List<_OrderStep> steps;
+  final VoidCallback onReload;
 
-  const _OrderStatusCard({required this.order, required this.steps});
+  const _OrderStatusCard({required this.order, required this.steps, required this.onReload});
 
   @override
   Widget build(BuildContext context) {
@@ -212,6 +213,70 @@ class _OrderStatusCard extends StatelessWidget {
               ),
             ],
           ),
+          if (order.status == 'cancel_requested')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(top: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Đang chờ duyệt hủy & hoàn tiền',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Colors.orange[800],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          if (order.status == 'pending' || order.status == 'confirmed' || order.status == 'processing')
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => _showCancelDialog(context, order.id),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: SportZoneTheme.error,
+                    side: const BorderSide(color: SportZoneTheme.error),
+                  ),
+                  child: const Text('Hủy đơn hàng'),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _showCancelDialog(BuildContext context, String orderId) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hủy đơn hàng'),
+        content: const Text('Bạn có chắc chắn muốn hủy đơn hàng này không?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Không'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final messenger = ScaffoldMessenger.of(context);
+              final res = await ApiService.cancelOrder(orderId);
+              if (res.isSuccess) {
+                messenger.showSnackBar(const SnackBar(content: Text('Đã gửi yêu cầu hủy đơn hàng')));
+                onReload();
+              } else {
+                messenger.showSnackBar(SnackBar(content: Text(res.errorMessage ?? 'Lỗi khi hủy đơn')));
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: SportZoneTheme.error),
+            child: const Text('Đồng ý'),
+          ),
         ],
       ),
     );
@@ -243,6 +308,8 @@ class _OrderStatusCard extends StatelessWidget {
       case 'delivered':
       case 'completed':
         return 'Đánh giá';
+      case 'cancel_requested':
+        return 'Yêu cầu hủy';
       case 'cancelled':
         return 'Đã hủy';
       case 'pending':
