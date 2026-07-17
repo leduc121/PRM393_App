@@ -15,6 +15,8 @@ export 'api_service.dart';
 export 'utils/gemini_client.dart';
 export 'utils/formatters.dart';
 export 'widgets/common_widgets.dart';
+export 'widgets/common_controls.dart';
+export 'widgets/product_image.dart';
 export 'widgets/filter_bottom_sheet.dart';
 
 export 'screens/admin/admin_product_list_screen.dart';

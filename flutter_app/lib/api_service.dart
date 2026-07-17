@@ -1,217 +1,49 @@
-import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter_app/config/app_config.dart';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter_app/services/api/admin_product_api_service.dart';
+import 'package:flutter_app/services/api/api_client.dart';
+import 'package:flutter_app/services/api/api_result.dart';
+import 'package:flutter_app/services/api/auth_api_service.dart';
+import 'package:flutter_app/services/api/cart_api_service.dart';
+import 'package:flutter_app/services/api/catalog_api_service.dart';
+import 'package:flutter_app/services/api/chat_api_service.dart';
+import 'package:flutter_app/services/api/notification_api_service.dart';
+import 'package:flutter_app/services/api/order_api_service.dart';
+import 'package:flutter_app/services/api/user_api_service.dart';
+import 'package:flutter_app/services/api/voucher_api_service.dart';
+
+export 'package:flutter_app/services/api/api_result.dart';
 
 class ApiService {
-  // Use the deployed backend for both debug and release builds.
-  static String get baseUrl {
-    return AppConfig.apiBaseUrl;
-  }
+  static String get baseUrl => ApiClient.baseUrl;
 
-  static const String _tokenKey = 'jwt_access_token';
-  static const Duration _timeout = Duration(seconds: 120);
-
-  /// Gửi ping "đánh thức" server Render (gọi khi mở app để server bắt đầu cold start sớm)
-  static Future<void> warmUp() async {
-    try {
-      http
-          .get(Uri.parse('$baseUrl/products?limit=1'))
-          .timeout(const Duration(seconds: 120));
-    } catch (_) {
-      // Bỏ qua lỗi - chỉ cần gửi request để đánh thức server
-    }
-  }
-
-  // ─── Token Management ───
-
-  static Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
-  }
-
-  static Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
-  }
-
-  static Future<void> clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-  }
-
-  static Future<Map<String, String>> _authHeaders() async {
-    final token = await getToken();
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
-  }
-
-  // ─── Auth Endpoints ───
+  static Future<void> warmUp() => ApiClient.warmUp();
+  static Future<void> saveToken(String token) => ApiClient.saveToken(token);
+  static Future<String?> getToken() => ApiClient.getToken();
+  static Future<void> clearToken() => ApiClient.clearToken();
 
   static Future<ApiResult> register({
     required String fullName,
     required String email,
     required String password,
     String? phone,
-  }) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/auth/register'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'fullName': fullName,
-              'email': email,
-              'password': password,
-              if (phone != null && phone.isNotEmpty) 'phone': phone,
-            }),
-          )
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final message = data['message'] ?? 'Đăng ký thất bại';
-        return ApiResult.error(
-          message is List ? message.join(', ') : message.toString(),
-        );
-      }
-    } on TimeoutException {
-      return ApiResult.error('Server phản hồi quá lâu. Vui lòng thử lại.');
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối đến server: $e');
-    }
-  }
+  }) => AuthApiService.register(
+    fullName: fullName,
+    email: email,
+    password: password,
+    phone: phone,
+  );
 
   static Future<ApiResult> login({
     required String email,
     required String password,
-  }) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/auth/login'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': email, 'password': password}),
-          )
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final token = data['accessToken'] ?? data['access_token'];
-        if (token != null) {
-          await saveToken(token.toString());
-        }
-        return ApiResult.success(data);
-      } else {
-        final message = data['message'] ?? 'Đăng nhập thất bại';
-        return ApiResult.error(
-          message is List ? message.join(', ') : message.toString(),
-        );
-      }
-    } on TimeoutException {
-      return ApiResult.error('Server phản hồi quá lâu. Vui lòng thử lại.');
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối đến server: $e');
-    }
-  }
-
+  }) => AuthApiService.login(email: email, password: password);
   static Future<ApiResult> verifyOtp({
     required String email,
     required String otp,
-  }) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/auth/verify-otp'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': email, 'otp': otp}),
-          )
-          .timeout(_timeout);
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final token = data['accessToken'] ?? data['access_token'];
-        if (token != null) {
-          await saveToken(token.toString());
-        }
-        return ApiResult.success(data);
-      } else {
-        final message = data['message'] ?? 'Xác thực thất bại';
-        return ApiResult.error(
-          message is List ? message.join(', ') : message.toString(),
-        );
-      }
-    } on TimeoutException {
-      return ApiResult.error('Server phản hồi quá lâu. Vui lòng thử lại.');
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  static Future<ApiResult> resendOtp({required String email}) async {
-    try {
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/auth/resend-otp'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'email': email}),
-          )
-          .timeout(_timeout);
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final message = data['message'] ?? 'Gửi lại thất bại';
-        return ApiResult.error(
-          message is List ? message.join(', ') : message.toString(),
-        );
-      }
-    } on TimeoutException {
-      return ApiResult.error('Server phản hồi quá lâu. Vui lòng thử lại.');
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  static Future<ApiResult> logout() async {
-    try {
-      final headers = await _authHeaders();
-      await http.post(Uri.parse('$baseUrl/auth/logout'), headers: headers);
-      await clearToken();
-      return ApiResult.success(null);
-    } catch (e) {
-      await clearToken();
-      return ApiResult.success(null);
-    }
-  }
-
-  static Future<ApiResult> getMe() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/auth/me'), headers: headers)
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error('Token hết hạn');
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  // ─── Products Endpoints ───
+  }) => AuthApiService.verifyOtp(email: email, otp: otp);
+  static Future<ApiResult> resendOtp({required String email}) =>
+      AuthApiService.resendOtp(email: email);
+  static Future<ApiResult> logout() => AuthApiService.logout();
+  static Future<ApiResult> getMe() => AuthApiService.getMe();
 
   static Future<ApiResult> getProducts({
     int page = 1,
@@ -223,338 +55,54 @@ class ApiService {
     int? maxPrice,
     String? gender,
     String? size,
-  }) async {
-    try {
-      final queryParams = <String, String>{
-        'page': page.toString(),
-        'limit': limit.toString(),
-        if (search != null && search.isNotEmpty) 'search': search,
-        // ignore: use_null_aware_elements
-        if (categoryId case final id?) 'category_id': id,
-        // ignore: use_null_aware_elements
-        if (brandId case final id?) 'brand_id': id,
-        if (minPrice != null) 'min_price': minPrice.toString(),
-        if (maxPrice != null) 'max_price': maxPrice.toString(),
-        if (gender != null && gender.isNotEmpty) 'gender': gender,
-        if (size != null && size.isNotEmpty) 'size': size,
-      };
-
-      final uri = Uri.parse(
-        '$baseUrl/products',
-      ).replace(queryParameters: queryParams);
-
-      final response = await http
-          .get(uri, headers: {'Content-Type': 'application/json'})
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error('Không thể tải danh sách sản phẩm');
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  static Future<ApiResult> getCategories() async {
-    try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/categories'),
-            headers: {'Content-Type': 'application/json'},
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error('Không thể tải danh mục');
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  static Future<ApiResult> getBrands() async {
-    try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/brands'),
-            headers: {'Content-Type': 'application/json'},
-          )
-          .timeout(_timeout);
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error('Không thể tải thương hiệu');
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  static Future<ApiResult> createBrand(String name) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/brands'),
-        headers: headers,
-        body: jsonEncode({'name': name}),
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Thêm thương hiệu thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi thêm thương hiệu: $e');
-    }
-  }
-
-  // ─── Admin Product Endpoints ───
+  }) => CatalogApiService.getProducts(
+    page: page,
+    limit: limit,
+    search: search,
+    categoryId: categoryId,
+    brandId: brandId,
+    minPrice: minPrice,
+    maxPrice: maxPrice,
+    gender: gender,
+    size: size,
+  );
+  static Future<ApiResult> getCategories() => CatalogApiService.getCategories();
+  static Future<ApiResult> getBrands() => CatalogApiService.getBrands();
+  static Future<ApiResult> createBrand(String name) =>
+      CatalogApiService.createBrand(name);
 
   static Future<ApiResult> uploadProductImage(
     String filePath, {
     List<int>? bytes,
     String? fileName,
-  }) async {
-    try {
-      final headers = await _authHeaders();
-      var request = http.MultipartRequest(
-        'POST',
-        Uri.parse('$baseUrl/products/upload'),
-      );
-      if (headers['Authorization'] != null) {
-        request.headers['Authorization'] = headers['Authorization']!;
-      }
-      if (kIsWeb && bytes != null) {
-        request.files.add(
-          http.MultipartFile.fromBytes(
-            'file',
-            bytes,
-            filename: fileName ?? 'upload.png',
-          ),
-        );
-      } else {
-        request.files.add(await http.MultipartFile.fromPath('file', filePath));
-      }
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Upload thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi upload: $e');
-    }
-  }
-
-  static Future<ApiResult> createProduct(Map<String, dynamic> data) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/products'),
-        headers: headers,
-        body: jsonEncode(data),
-      );
-
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Thêm sản phẩm thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  static Future<ApiResult> getProductDetail(String id) async {
-    try {
-      final response = await http
-          .get(Uri.parse('$baseUrl/products/$id'))
-          .timeout(_timeout);
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Lấy chi tiết sản phẩm thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
+  }) => AdminProductApiService.uploadProductImage(
+    filePath,
+    bytes: bytes,
+    fileName: fileName,
+  );
+  static Future<ApiResult> createProduct(Map<String, dynamic> data) =>
+      AdminProductApiService.createProduct(data);
+  static Future<ApiResult> getProductDetail(String id) =>
+      AdminProductApiService.getProductDetail(id);
   static Future<ApiResult> updateProduct(
     String id,
     Map<String, dynamic> data,
-  ) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.patch(
-        Uri.parse('$baseUrl/products/$id'),
-        headers: headers,
-        body: jsonEncode(data),
-      );
+  ) => AdminProductApiService.updateProduct(id, data);
+  static Future<ApiResult> deleteProduct(String id) =>
+      AdminProductApiService.deleteProduct(id);
 
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Cập nhật thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  static Future<ApiResult> deleteProduct(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/products/$id'),
-        headers: headers,
-      );
-
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Xóa thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Không thể kết nối: $e');
-    }
-  }
-
-  // ─── Cart Endpoints ───
-
-  static Future<ApiResult> getCart() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/cart'), headers: headers)
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải giỏ hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải giỏ hàng: $e');
-    }
-  }
-
+  static Future<ApiResult> getCart() => CartApiService.getCart();
   static Future<ApiResult> addToCart({
     required String variantId,
     required int quantity,
-  }) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .post(
-            Uri.parse('$baseUrl/cart/items'),
-            headers: headers,
-            body: jsonEncode({'variantId': variantId, 'quantity': quantity}),
-          )
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể thêm vào giỏ hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi thêm vào giỏ hàng: $e');
-    }
-  }
-
+  }) => CartApiService.addToCart(variantId: variantId, quantity: quantity);
   static Future<ApiResult> updateCartItem({
     required String itemId,
     required int quantity,
-  }) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.patch(
-        Uri.parse('$baseUrl/cart/items/$itemId'),
-        headers: headers,
-        body: jsonEncode({'quantity': quantity}),
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể cập nhật giỏ hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi cập nhật giỏ hàng: $e');
-    }
-  }
-
-  static Future<ApiResult> deleteCartItem({required String itemId}) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/cart/items/$itemId'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể xóa mặt hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi xóa mặt hàng: $e');
-    }
-  }
-
-  static Future<ApiResult> clearCart() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/cart'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể xóa toàn bộ giỏ hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi xóa toàn bộ giỏ hàng: $e');
-    }
-  }
-
-  // ─── Orders Endpoints ───
+  }) => CartApiService.updateCartItem(itemId: itemId, quantity: quantity);
+  static Future<ApiResult> deleteCartItem({required String itemId}) =>
+      CartApiService.deleteCartItem(itemId: itemId);
+  static Future<ApiResult> clearCart() => CartApiService.clearCart();
 
   static Future<ApiResult> createOrder({
     required String addressId,
@@ -565,373 +113,51 @@ class ApiService {
     double? deliveryLatitude,
     double? deliveryLongitude,
     double? deliveryDistanceKm,
-  }) async {
-    try {
-      final headers = await _authHeaders();
-      final body = <String, dynamic>{
-        'addressId': addressId,
-        'paymentMethod': paymentMethod,
-      };
-      if (note != null && note.isNotEmpty) body['note'] = note;
-      if (voucherId != null && voucherId.isNotEmpty) {
-        body['voucherId'] = voucherId;
-      }
-      if (shippingFee != null) body['shippingFee'] = shippingFee;
-      if (deliveryLatitude != null) {
-        body['deliveryLatitude'] = deliveryLatitude;
-      }
-      if (deliveryLongitude != null) {
-        body['deliveryLongitude'] = deliveryLongitude;
-      }
-      if (deliveryDistanceKm != null) {
-        body['deliveryDistanceKm'] = deliveryDistanceKm;
-      }
+  }) => OrderApiService.createOrder(
+    addressId: addressId,
+    paymentMethod: paymentMethod,
+    note: note,
+    voucherId: voucherId,
+    shippingFee: shippingFee,
+    deliveryLatitude: deliveryLatitude,
+    deliveryLongitude: deliveryLongitude,
+    deliveryDistanceKm: deliveryDistanceKm,
+  );
+  static Future<ApiResult> createStripeCheckoutSession(String orderId) =>
+      OrderApiService.createStripeCheckoutSession(orderId);
+  static Future<ApiResult> getMyOrders() => OrderApiService.getMyOrders();
+  static Future<ApiResult> getAllOrders() => OrderApiService.getAllOrders();
+  static Future<ApiResult> getOrderById(String id) =>
+      OrderApiService.getOrderById(id);
+  static Future<ApiResult> cancelOrder(String id) =>
+      OrderApiService.cancelOrder(id);
+  static Future<ApiResult> abandonOrder(String id) =>
+      OrderApiService.abandonOrder(id);
+  static Future<ApiResult> updateOrderStatus(String id, String status) =>
+      OrderApiService.updateOrderStatus(id, status);
 
-      final response = await http.post(
-        Uri.parse('$baseUrl/orders'),
-        headers: headers,
-        body: jsonEncode(body),
-      );
+  static Future<ApiResult> approveCancelOrder(String id) =>
+      OrderApiService.approveCancelOrder(id);
 
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Đặt hàng thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi đặt hàng: $e');
-    }
-  }
+  static Future<ApiResult> getNotifications() =>
+      NotificationApiService.getNotifications();
+  static Future<ApiResult> markNotificationRead(String id) =>
+      NotificationApiService.markNotificationRead(id);
+  static Future<ApiResult> markAllNotificationsRead() =>
+      NotificationApiService.markAllNotificationsRead();
+  static Future<ApiResult> deleteNotification(String id) =>
+      NotificationApiService.deleteNotification(id);
+  static Future<ApiResult> clearNotifications() =>
+      NotificationApiService.clearNotifications();
 
-  static Future<ApiResult> createStripeCheckoutSession(String orderId) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/payment/create-checkout-session/$orderId'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể khởi tạo thanh toán Stripe';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tạo phiên thanh toán: $e');
-    }
-  }
-
-  static Future<ApiResult> getMyOrders() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/orders'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải danh sách đơn hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải danh sách đơn hàng: $e');
-    }
-  }
-
-  static Future<ApiResult> getAllOrders() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/orders/all'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải danh sách đơn hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải danh sách đơn hàng: $e');
-    }
-  }
-
-  static Future<ApiResult> getOrderById(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/orders/$id'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải chi tiết đơn hàng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải chi tiết đơn hàng: $e');
-    }
-  }
-
-  static Future<ApiResult> cancelOrder(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/orders/$id'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Hủy đơn hàng thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi hủy đơn hàng: $e');
-    }
-  }
-
-  static Future<ApiResult> approveCancelOrder(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/orders/$id/approve-cancel'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Duyệt hoàn tiền thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi duyệt hủy đơn: $e');
-    }
-  }
-
-  static Future<ApiResult> abandonOrder(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/orders/$id/abandon'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Hủy đơn hàng thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi hủy đơn hàng: $e');
-    }
-  }
-
-  static Future<ApiResult> updateOrderStatus(String id, String status) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.patch(
-        Uri.parse('$baseUrl/orders/$id/status'),
-        headers: headers,
-        body: jsonEncode({'status': status}),
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Cập nhật trạng thái thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi cập nhật trạng thái đơn hàng: $e');
-    }
-  }
-
-  // ─── Notifications Endpoints ───
-
-  static Future<ApiResult> getNotifications() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/notifications'), headers: headers)
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải thông báo';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải thông báo: $e');
-    }
-  }
-
-  static Future<ApiResult> markNotificationRead(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .patch(Uri.parse('$baseUrl/notifications/$id/read'), headers: headers)
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể đánh dấu thông báo đã đọc';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi cập nhật thông báo: $e');
-    }
-  }
-
-  static Future<ApiResult> markAllNotificationsRead() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .patch(Uri.parse('$baseUrl/notifications/read-all'), headers: headers)
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể đánh dấu tất cả đã đọc';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi cập nhật thông báo: $e');
-    }
-  }
-
-  static Future<ApiResult> deleteNotification(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .delete(Uri.parse('$baseUrl/notifications/$id'), headers: headers)
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể xóa thông báo';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi xóa thông báo: $e');
-    }
-  }
-
-  static Future<ApiResult> clearNotifications() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .delete(
-            Uri.parse('$baseUrl/notifications/clear-all'),
-            headers: headers,
-          )
-          .timeout(_timeout);
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể xóa tất cả thông báo';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi xóa tất cả thông báo: $e');
-    }
-  }
-
-  // ─── Users & Addresses Endpoints ───
-
-  static Future<ApiResult> getUserProfile(String uid) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/users/$uid'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể lấy thông tin người dùng';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi lấy thông tin người dùng: $e');
-    }
-  }
-
+  static Future<ApiResult> getUserProfile(String uid) =>
+      UserApiService.getUserProfile(uid);
   static Future<ApiResult> updateUserProfile(
     String uid,
     Map<String, dynamic> data,
-  ) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.patch(
-        Uri.parse('$baseUrl/users/$uid'),
-        headers: headers,
-        body: jsonEncode(data),
-      );
-
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Cập nhật profile thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi cập nhật profile: $e');
-    }
-  }
-
-  static Future<ApiResult> getAddresses(String uid) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/users/$uid/addresses'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải danh sách địa chỉ';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải danh sách địa chỉ: $e');
-    }
-  }
-
+  ) => UserApiService.updateUserProfile(uid, data);
+  static Future<ApiResult> getAddresses(String uid) =>
+      UserApiService.getAddresses(uid);
   static Future<ApiResult> createAddress({
     required String uid,
     required String recipientName,
@@ -941,294 +167,42 @@ class ApiService {
     String? district,
     String? city,
     bool isDefault = false,
-  }) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/users/$uid/addresses'),
-        headers: headers,
-        body: jsonEncode({
-          'recipientName': recipientName,
-          'phone': phone,
-          'street': street,
-          if (ward != null && ward.isNotEmpty) 'ward': ward,
-          if (district != null && district.isNotEmpty) 'district': district,
-          if (city != null && city.isNotEmpty) 'city': city,
-          'isDefault': isDefault,
-        }),
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tạo địa chỉ';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tạo địa chỉ: $e');
-    }
-  }
-
+  }) => UserApiService.createAddress(
+    uid: uid,
+    recipientName: recipientName,
+    phone: phone,
+    street: street,
+    ward: ward,
+    district: district,
+    city: city,
+    isDefault: isDefault,
+  );
   static Future<ApiResult> updateAddress(
     String addressId,
     Map<String, dynamic> data,
-  ) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.patch(
-        Uri.parse('$baseUrl/addresses/$addressId'),
-        headers: headers,
-        body: jsonEncode(data),
-      );
+  ) => UserApiService.updateAddress(addressId, data);
+  static Future<ApiResult> deleteAddress(String addressId) =>
+      UserApiService.deleteAddress(addressId);
 
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Không thể cập nhật địa chỉ';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi cập nhật địa chỉ: $e');
-    }
-  }
+  static Future<ApiResult> getMessages() => ChatApiService.getMessages();
+  static Future<ApiResult> sendMessage(String content) =>
+      ChatApiService.sendMessage(content);
+  static Future<ApiResult> getChatSessions() =>
+      ChatApiService.getChatSessions();
+  static Future<ApiResult> getMessagesForAdmin(String uid) =>
+      ChatApiService.getMessagesForAdmin(uid);
+  static Future<ApiResult> replyMessage(String uid, String content) =>
+      ChatApiService.replyMessage(uid, content);
 
-  static Future<ApiResult> deleteAddress(String addressId) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/addresses/$addressId'),
-        headers: headers,
-      );
-
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể xóa địa chỉ';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi xóa địa chỉ: $e');
-    }
-  }
-
-  // --- CHAT APIs ---
-
-  static Future<ApiResult> getMessages() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/messages'),
-        headers: headers,
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error(
-          data['message']?.toString() ?? 'Lỗi tải tin nhắn',
-        );
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải tin nhắn: $e');
-    }
-  }
-
-  static Future<ApiResult> sendMessage(String content) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/messages'),
-        headers: headers,
-        body: jsonEncode({'content': content}),
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error(
-          data['message']?.toString() ?? 'Lỗi gửi tin nhắn',
-        );
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi gửi tin nhắn: $e');
-    }
-  }
-
-  static Future<ApiResult> getChatSessions() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/messages/sessions'),
-        headers: headers,
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error(
-          data['message']?.toString() ?? 'Lỗi tải phiên chat',
-        );
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải phiên chat: $e');
-    }
-  }
-
-  static Future<ApiResult> getMessagesForAdmin(String uid) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.get(
-        Uri.parse('$baseUrl/messages/$uid'),
-        headers: headers,
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error(
-          data['message']?.toString() ?? 'Lỗi tải lịch sử chat',
-        );
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải lịch sử chat: $e');
-    }
-  }
-
-  static Future<ApiResult> replyMessage(String uid, String content) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/messages/$uid/reply'),
-        headers: headers,
-        body: jsonEncode({'content': content}),
-      );
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        return ApiResult.error(
-          data['message']?.toString() ?? 'Lỗi trả lời tin nhắn',
-        );
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi trả lời tin nhắn: $e');
-    }
-  }
-
-  // ─── Voucher Endpoints ───
-
-  static Future<ApiResult> getMyVouchers() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/vouchers/my'), headers: headers)
-          .timeout(_timeout);
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải voucher';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải voucher: $e');
-    }
-  }
-
-  static Future<ApiResult> getAllVouchers() async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http
-          .get(Uri.parse('$baseUrl/vouchers/all'), headers: headers)
-          .timeout(_timeout);
-      final data = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(data);
-      } else {
-        final msg = data['message'] ?? 'Không thể tải voucher';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tải voucher: $e');
-    }
-  }
-
-  static Future<ApiResult> createVoucher(Map<String, dynamic> data) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.post(
-        Uri.parse('$baseUrl/vouchers'),
-        headers: headers,
-        body: jsonEncode(data),
-      );
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Tạo voucher thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi tạo voucher: $e');
-    }
-  }
-
+  static Future<ApiResult> getMyVouchers() => VoucherApiService.getMyVouchers();
+  static Future<ApiResult> getAllVouchers() =>
+      VoucherApiService.getAllVouchers();
+  static Future<ApiResult> createVoucher(Map<String, dynamic> data) =>
+      VoucherApiService.createVoucher(data);
   static Future<ApiResult> updateVoucher(
     String id,
     Map<String, dynamic> data,
-  ) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.patch(
-        Uri.parse('$baseUrl/vouchers/$id'),
-        headers: headers,
-        body: jsonEncode(data),
-      );
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Cập nhật voucher thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi cập nhật voucher: $e');
-    }
-  }
-
-  static Future<ApiResult> deleteVoucher(String id) async {
-    try {
-      final headers = await _authHeaders();
-      final response = await http.delete(
-        Uri.parse('$baseUrl/vouchers/$id'),
-        headers: headers,
-      );
-      final responseData = jsonDecode(response.body);
-      if (response.statusCode == 200) {
-        return ApiResult.success(responseData);
-      } else {
-        final msg = responseData['message'] ?? 'Xóa voucher thất bại';
-        return ApiResult.error(msg is List ? msg.join(', ') : msg.toString());
-      }
-    } catch (e) {
-      return ApiResult.error('Lỗi xóa voucher: $e');
-    }
-  }
-}
-
-class ApiResult {
-  final bool isSuccess;
-  final dynamic data;
-  final String? errorMessage;
-
-  ApiResult._({required this.isSuccess, this.data, this.errorMessage});
-
-  factory ApiResult.success(dynamic data) =>
-      ApiResult._(isSuccess: true, data: data);
-
-  factory ApiResult.error(String message) =>
-      ApiResult._(isSuccess: false, errorMessage: message);
+  ) => VoucherApiService.updateVoucher(id, data);
+  static Future<ApiResult> deleteVoucher(String id) =>
+      VoucherApiService.deleteVoucher(id);
 }

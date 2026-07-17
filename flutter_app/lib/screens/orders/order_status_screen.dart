@@ -82,8 +82,11 @@ class _OrderStatusScreenState extends State<OrderStatusScreen> {
             onRefresh: () async => _reload(),
             child: ListView.separated(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-              itemBuilder: (context, index) =>
-                  _OrderStatusCard(order: orders[index], steps: _steps, onReload: _reload),
+              itemBuilder: (context, index) => _OrderStatusCard(
+                order: orders[index],
+                steps: _steps,
+                onReload: _reload,
+              ),
               separatorBuilder: (context, index) => const SizedBox(height: 14),
               itemCount: orders.length,
             ),
@@ -99,7 +102,11 @@ class _OrderStatusCard extends StatelessWidget {
   final List<_OrderStep> steps;
   final VoidCallback onReload;
 
-  const _OrderStatusCard({required this.order, required this.steps, required this.onReload});
+  const _OrderStatusCard({
+    required this.order,
+    required this.steps,
+    required this.onReload,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -219,7 +226,7 @@ class _OrderStatusCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(top: 16),
               decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
+                color: Colors.orange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
@@ -231,7 +238,9 @@ class _OrderStatusCard extends StatelessWidget {
                 ),
               ),
             ),
-          if (order.status == 'pending' || order.status == 'confirmed' || order.status == 'processing')
+          if (order.status == 'pending' ||
+              order.status == 'confirmed' ||
+              order.status == 'processing')
             Padding(
               padding: const EdgeInsets.only(top: 16),
               child: SizedBox(
@@ -268,13 +277,21 @@ class _OrderStatusCard extends StatelessWidget {
               final messenger = ScaffoldMessenger.of(context);
               final res = await ApiService.cancelOrder(orderId);
               if (res.isSuccess) {
-                messenger.showSnackBar(const SnackBar(content: Text('Đã gửi yêu cầu hủy đơn hàng')));
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Đã gửi yêu cầu hủy đơn hàng')),
+                );
                 onReload();
               } else {
-                messenger.showSnackBar(SnackBar(content: Text(res.errorMessage ?? 'Lỗi khi hủy đơn')));
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(res.errorMessage ?? 'Lỗi khi hủy đơn'),
+                  ),
+                );
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: SportZoneTheme.error),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: SportZoneTheme.error,
+            ),
             child: const Text('Đồng ý'),
           ),
         ],

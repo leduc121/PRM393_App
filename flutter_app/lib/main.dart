@@ -16,8 +16,8 @@ class SportZoneApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => SportZoneState(),
+    return MultiProvider(
+      providers: [ChangeNotifierProvider(create: (_) => SportZoneState())],
       child: MaterialApp(
         title: 'SportZone',
         debugShowCheckedModeBanner: false,
